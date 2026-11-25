@@ -1,0 +1,385 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Glaucoband – ACD Glaucoma Screening</title>
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0f2236"><link rel="apple-touch-icon" href="icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+<style>
+:root{--bg:#f3f5f7;--card:#fff;--ink:#0f2236;--mut:#5d6f82;--ln:#d9e0e7;--ac:#0e6b7d;--Low:#1f9d62;--Moderate:#c99700;--High:#e0691f;--Critical:#c8283c;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root{--bg:#0b1622;--card:#122234;--ink:#e6edf4;--mut:#93a5b8;--ln:#24384d;--ac:#4cc3d9}}
+*{box-sizing:border-box}html,body{margin:0}body{background:var(--bg);color:var(--ink);font:15px/1.5 'Bricolage Grotesque',system-ui,sans-serif}
+header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 18px;background:var(--ink);color:var(--bg)}
+header b{font-size:20px;font-weight:800;letter-spacing:-.5px;margin-right:auto}header b i{font-style:normal;opacity:.6;font-weight:400;font-size:12px;margin-left:8px}
+header select,header label{font:inherit;font-size:13px}
+select,input,textarea,button{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--ln);border-radius:8px;padding:7px 10px;max-width:100%}
+button{cursor:pointer;background:var(--ac);color:#fff;border:0;font-weight:600}button.o{background:none;color:var(--ac);border:1px solid var(--ac)}button:disabled{opacity:.4}
+nav{display:flex;gap:2px;overflow-x:auto;padding:0 14px;background:var(--card);border-bottom:1px solid var(--ln)}
+nav a{padding:12px 14px;cursor:pointer;color:var(--mut);white-space:nowrap;border-bottom:3px solid transparent}nav a.on{color:var(--ink);border-color:var(--ac);font-weight:600}
+nav em{background:var(--Critical);color:#fff;border-radius:9px;padding:0 6px;font-size:11px;font-style:normal;margin-left:4px}
+main{max-width:1100px;margin:0 auto;padding:18px}
+.g2{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px}@media(max-width:760px){.g2{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:12px;padding:16px;margin-bottom:16px}
+h2{margin:0 0 10px;font-size:22px;letter-spacing:-.4px}h3{margin:0 0 8px;font-size:16px}.mut{color:var(--mut)}
+.stage{background:#000;border-radius:12px;min-height:260px;display:flex;align-items:center;justify-content:center;color:#9ab;text-align:center;padding:10px}
+canvas{max-width:100%;height:auto;touch-action:none;border-radius:8px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
+.pill{display:inline-block;padding:1px 10px;border-radius:12px;color:#fff;font-size:12px;font-weight:600}
+.big{font-size:44px;font-weight:800;letter-spacing:-2px;line-height:1}
+.bar{height:10px;border-radius:5px;background:var(--ln);overflow:hidden}.bar i{display:block;height:100%}
+table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--ln)}th{color:var(--mut);font-weight:600}
+.tbl{overflow-x:auto}.ch{width:100%;height:auto}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}.kpi div{background:var(--bg);border-radius:10px;padding:10px}.kpi b{display:block;font-size:26px}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;display:none;z-index:9;max-width:90%}
+.rep{max-width:700px;margin:auto}
+@media print{header,nav,.np,#toast{display:none!important}body{background:#fff}.card{border:0}}
+</style></head><body>
+<header><b>Glaucoband<i>ACD glaucoma screening</i></b>
+<select id="role" onchange="A.role=this.value;A.view=NAV[A.role][0];shell()"><option value="patient">Patient</option><option value="doctor">Doctor</option><option value="admin">Admin</option></select>
+<select id="who" onchange="A.pid=this.value;S.img=null;view()"></select>
+<select id="lang" onchange="A.lang=this.value;view()"><option value="en">English</option><option value="ta">தமிழ்</option><option value="hi">हिन्दी</option></select>
+<label><input type="checkbox" id="voice" checked> Voice guide</label></header>
+<nav id="nav"></nav><main id="app"></main><div id="toast"></div>
+<script>
+const $=id=>document.getElementById(id),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const cv=document.createElement('canvas'),ctx=cv.getContext('2d');
+let S={img:null,orig:null,name:'',p:null,c:null,scale:null,manual:false,dir:1,side:0,rl:5,drag:null,eye:'OD',asv:0};
+const MAXW=1100;
+function getScale(){return S.scale||cv.width/40;}
+
+function boxBlur(g,w,h,r){
+ const t=new Float32Array(w*h),o=new Float32Array(w*h);
+ for(let y=0;y<h;y++){let s=0,c=0;const b=y*w;
+  for(let x=-r;x<w;x++){const a=x+r,d=x-r-1;if(a<w){s+=g[b+a];c++;}if(d>=0){s-=g[b+d];c--;}if(x>=0)t[b+x]=s/c;}}
+ for(let x=0;x<w;x++){let s=0,c=0;
+  for(let y=-r;y<h;y++){const a=y+r,d=y-r-1;if(a<h){s+=t[a*w+x];c++;}if(d>=0){s-=t[d*w+x];c--;}if(y>=0)o[y*w+x]=s/c;}}
+ return o;}
+function pctl(vals,p){const hs=new Array(256).fill(0);vals.forEach(v=>hs[v|0]++);let a=0;for(let i=0;i<256;i++){a+=hs[i];if(a>vals.length*p)return i;}return 255;}
+function findPupil(g,w,h){
+ // stage 1: locate the eye as the largest dark blob
+ const x0=~~(w*.05),x1=~~(w*.85),y0=~~(h*.15),y1=~~(h*.85),v=[];
+ for(let y=y0;y<y1;y+=2)for(let x=x0;x<x1;x+=2)v.push(g[y*w+x]);
+ const th=pctl(v,.05),st=4,gw=Math.ceil(w/st),gh=Math.ceil(h/st),lab=new Int32Array(gw*gh);
+ let best=null,id=0;
+ for(let gy=~~(y0/st);gy<y1/st;gy++)for(let gx=~~(x0/st);gx<x1/st;gx++){
+  const k=gy*gw+gx;if(lab[k]||g[gy*st*w+gx*st]>th)continue;
+  id++;const q=[k];lab[k]=id;let sx=0,sy=0,c=0;
+  while(q.length){const t=q.pop(),tx=t%gw,ty=(t/gw)|0;sx+=tx;sy+=ty;c++;
+   for(const[ax,ay]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=tx+ax,ny=ty+ay;
+    if(nx<0||ny<0||nx>=gw||ny>=gh)continue;const nk=ny*gw+nx;
+    if(lab[nk]||g[ny*st*w+nx*st]>th)continue;lab[nk]=id;q.push(nk);}}
+  if(!best||c>best.c)best={c,x:sx/c*st,y:sy/c*st};}
+ if(!best)best={c:0,x:w/2,y:h/2};
+ // stage 2: dark core of the iris/pupil inside a window around the eye (thin lashes/liner removed by erosion)
+ const R=Math.round(w*.19),ax=Math.max(0,Math.round(best.x-R)),bx=Math.min(w,Math.round(best.x+R)),ay=Math.max(0,Math.round(best.y-R)),by=Math.min(h,Math.round(best.y+R)),ww=bx-ax,wh=by-ay;
+ const wv=[];for(let y=0;y<wh;y++)for(let x=0;x<ww;x++)wv.push(g[(ay+y)*w+ax+x]);
+ const th2=pctl(wv,.20),er=Math.max(2,Math.round(w*.011)),m=new Uint8Array(ww*wh);
+ for(let i=0;i<ww*wh;i++)m[i]=wv[i]<=th2?1:0;
+ const e1=new Uint8Array(ww*wh),e2=new Uint8Array(ww*wh),L=2*er+1;
+ for(let y=0;y<wh;y++){const p=new Int32Array(ww+1);for(let x=0;x<ww;x++)p[x+1]=p[x]+m[y*ww+x];
+  for(let x=er;x<ww-er;x++)if(p[x+er+1]-p[x-er]==L)e1[y*ww+x]=1;}
+ for(let x=0;x<ww;x++){const p=new Int32Array(wh+1);for(let y=0;y<wh;y++)p[y+1]=p[y]+e1[y*ww+x];
+  for(let y=er;y<wh-er;y++)if(p[y+er+1]-p[y-er]==L)e2[y*ww+x]=1;}
+ const lb=new Int32Array(ww*wh);let top=null,nid=0;
+ for(let s=0;s<ww*wh;s++){if(!e2[s]||lb[s])continue;nid++;lb[s]=nid;const q=[s];let sx=0,sy=0,c=0;
+  while(q.length){const t=q.pop(),tx=t%ww,ty=(t/ww)|0;sx+=tx;sy+=ty;c++;
+   for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=tx+dx,ny=ty+dy;if(nx<0||ny<0||nx>=ww||ny>=wh)continue;const k=ny*ww+nx;if(!e2[k]||lb[k])continue;lb[k]=nid;q.push(k);}}
+  if(!top||c>top.c)top={c,x:sx/c,y:sy/c};}
+ if(!top)return{x:best.x,y:best.y,r:w*.04,dia:w*.1};
+ const dia=2*Math.sqrt(top.c/Math.PI)+2*er;
+ return{x:ax+top.x,y:ay+top.y,r:dia/4,dia};
+}
+function isY(d,i){return d[i]>170&&d[i+1]>150&&d[i+2]<120&&d[i]-d[i+2]>110}
+function ruler(d,w,h){const col=new Int32Array(w);for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(isY(d,4*(y*w+x)))col[x]++;
+ let bx=0;for(let x=0;x<w;x++)if(col[x]>col[bx])bx=x;if(col[bx]<h*.08)return null;let y0=h,y1=-1;
+ for(let x=Math.max(0,bx-8);x<=Math.min(w-1,bx+8);x++)for(let y=0;y<h;y++)if(isY(d,4*(y*w+x))){if(y<y0)y0=y;if(y>y1)y1=y}
+ return y1-y0>h*.1?{x:bx,y0,y1,len:y1-y0}:null}
+function comps(m,gw,gh,minc){const lab=new Int32Array(gw*gh),out=[];let id=0;
+ for(let s=0;s<gw*gh;s++){if(!m[s]||lab[s])continue;id++;lab[s]=id;const q=[s],px=[];
+  while(q.length){const t=q.pop(),tx=t%gw,ty=(t/gw)|0;px.push(t);
+   for(const[a,b]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=tx+a,ny=ty+b;if(nx<0||ny<0||nx>=gw||ny>=gh)continue;const k=ny*gw+nx;if(!m[k]||lab[k])continue;lab[k]=id;q.push(k)}}
+  if(px.length>=minc)out.push(px)}return out}
+function locate(d,g,w,h){const st=3,gw=Math.ceil(w/st),gh=Math.ceil(h/st),m=new Uint8Array(gw*gh);
+ for(let y=0;y<gh;y++)for(let x=0;x<gw;x++){const X=x*st,Y=y*st;if(X<6||Y<h*.1||Y>h*.9)continue;const i=4*(Y*w+X),mx=Math.max(d[i],d[i+1],d[i+2]),mn=Math.min(d[i],d[i+1],d[i+2]);if(mx>170&&(mx-mn)/(mx+1)<.22)m[y*gw+x]=1}
+ const cs=comps(m,gw,gh,40).sort((a,b)=>b.length-a.length);if(!cs.length)return null;
+ const sc=cs[0];let x0=1e9,x1=-1,cy=0;const scl=new Uint8Array(gw*gh);sc.forEach(t=>{const x=t%gw,y=(t/gw)|0;scl[t]=1;x0=Math.min(x0,x);x1=Math.max(x1,x);cy+=y});cy=cy/sc.length*st;x0*=st;x1*=st;
+ const ax=Math.max(0,Math.round(x0-.25*w)),bx=Math.min(w,Math.round(x1+.3*w)),ay=Math.max(0,Math.round(cy-.15*h)),by=Math.min(h,Math.round(cy+.15*h));
+ const vals=[];for(let y=ay;y<by;y+=3)for(let x=ax;x<bx;x+=3)if(!scl[((y/st)|0)*gw+((x/st)|0)])vals.push(g[y*w+x]);
+ const th=pctl(vals,.40),dm=new Uint8Array(gw*gh),er=2;
+ for(let y=(ay/st)|0;y<by/st;y++)for(let x=(ax/st)|0;x<bx/st;x++){const k=y*gw+x;if(!scl[k]&&g[y*st*w+x*st]<=th)dm[k]=1}
+ const e=new Uint8Array(gw*gh);for(let y=er;y<gh-er;y++)for(let x=er;x<gw-er;x++){let ok=1;for(let a=-er;a<=er&&ok;a++)for(let b=-er;b<=er;b++)if(!dm[(y+a)*gw+x+b]){ok=0;break}e[y*gw+x]=ok}
+ let best=null;for(const c of comps(e,gw,gh,12)){let sx=0,sy=0;c.forEach(t=>{sx+=t%gw;sy+=(t/gw)|0});sx=sx/c.length*st;sy=sy/c.length*st;
+  const dx=sx<x0?x0-sx:sx>x1?sx-x1:0;if(dx>.22*w)continue;const s=c.length/(1+dx/w*4);if(!best||s>best.s)best={s,x:sx,y:sy}}
+ if(!best)return null;const dir=best.x>(x0+x1)/2?1:-1,yr=Math.round(best.y);
+ let xl=Math.round(best.x);while(xl>0&&xl<w-1&&!scl[((yr/st)|0)*gw+((xl/st)|0)])xl-=dir;if(xl<=0||xl>=w-1)xl=Math.round(dir>0?x1:x0);
+ let mg=0;const gr=[];for(let x=xl+dir*Math.round(.05*w);x>2&&x<w-3&&Math.abs(x-xl)<.3*w;x+=dir){let s=0;for(let k=-3;k<=3;k++){const r=Math.min(h-1,Math.max(0,yr+k));s+=g[r*w+x+dir*2]-g[r*w+x-dir*2]}const q=Math.abs(s/7);gr.push([x,q]);if(q>mg)mg=q}
+ if(!gr.length)return null;let apex=gr[0][0];for(const[x,q]of gr)if(q>mg*.6){apex=x;break}
+ return{dir,y:yr,xl,apex,px:Math.round((xl+apex)/2),iris:Math.abs(apex-xl)}}
+
+function detect(){
+ const w=cv.width,h=cv.height,o=document.createElement('canvas');o.width=w;o.height=h;
+ const oc=o.getContext('2d');oc.drawImage(S.img,0,0,w,h);
+ const d=oc.getImageData(0,0,w,h).data;let g=new Float32Array(w*h);
+ for(let i=0;i<w*h;i++)g[i]=.299*d[4*i]+.587*d[4*i+1]+.114*d[4*i+2];
+ g=boxBlur(g,w,h,Math.max(2,Math.round(w*.004)));
+ const L=locate(d,g,w,h),RL=ruler(d,w,h);
+ if(L&&L.dir==S.dir){S.p={x:L.px,y:L.y};S.pr=L.iris/4;S.apex=L.apex;S.c={x:L.apex,y:L.y};S.edge=9;S.loc=1;S.iw=L.iris;S.scale=RL?RL.len/(S.rl*10):L.iris/9;S.sc=RL?'ruler':'iris';S.rul=RL;return render()}
+ S.loc=0;S.sc='pupil';S.rul=null;
+ const P=findPupil(g,w,h);
+ S.p={x:P.x,y:P.y};S.pr=P.r;
+ if(!S.manual)S.scale=Math.max(2,P.dia/9.5);
+ const dir=S.dir,row=Math.round(S.p.y);let maxg=0;const gr=[];
+ for(let x=Math.round(S.p.x+dir*S.pr*1.3);x>2&&x<w-3;x+=dir){
+  let s=0;for(let yy=-3;yy<=3;yy++){const r=Math.min(h-1,Math.max(0,row+yy));s+=g[r*w+x+dir*2]-g[r*w+x-dir*2];}
+  const q=Math.abs(s/7);gr.push([x,q]);if(q>maxg)maxg=q;}
+ let apex=gr.length?gr[0][0]:S.p.x+dir*S.pr*2;
+ for(const[x,q]of gr){if(q>maxg*.6){apex=x;break;}}
+ S.edge=maxg/(gr.reduce((a,b)=>a+b[1],0)/(gr.length||1)+1e-3);S.apex=apex;placeCC();
+}
+function detectOld(){
+ const w=cv.width,h=cv.height;
+ const o=document.createElement('canvas');o.width=w;o.height=h;
+ const oc=o.getContext('2d');oc.filter='blur(3px)';oc.drawImage(S.img,0,0,w,h);
+ const d=oc.getImageData(0,0,w,h).data;
+ const g=new Float32Array(w*h);
+ for(let i=0;i<w*h;i++)g[i]=.299*d[4*i]+.587*d[4*i+1]+.114*d[4*i+2];
+ // central search region
+ const x0=Math.round(w*.15),x1=Math.round(w*.85),y0=Math.round(h*.15),y1=Math.round(h*.85);
+ const hist=new Array(256).fill(0);let n=0;
+ for(let y=y0;y<y1;y+=2)for(let x=x0;x<x1;x+=2){hist[g[y*w+x]|0]++;n++;}
+ let acc=0,th=0;for(let i=0;i<256;i++){acc+=hist[i];if(acc>n*.05){th=i;break;}}
+ // connected components on a step-4 grid
+ const st=4,gw=Math.ceil(w/st),gh=Math.ceil(h/st),lab=new Int32Array(gw*gh);
+ let best=null,id=0;
+ for(let gy=Math.floor(y0/st);gy<y1/st;gy++)for(let gx=Math.floor(x0/st);gx<x1/st;gx++){
+  const k=gy*gw+gx;if(lab[k]||g[gy*st*w+gx*st]>th)continue;
+  id++;const q=[k];lab[k]=id;let sx=0,sy=0,c=0,minx=1e9,maxx=-1;
+  while(q.length){const t=q.pop(),tx=t%gw,ty=(t/gw)|0;sx+=tx;sy+=ty;c++;minx=Math.min(minx,tx);maxx=Math.max(maxx,tx);
+   for(const[ax,ay]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=tx+ax,ny=ty+ay;
+    if(nx<0||ny<0||nx>=gw||ny>=gh)continue;const nk=ny*gw+nx;
+    if(lab[nk]||g[ny*st*w+nx*st]>th)continue;lab[nk]=id;q.push(nk);}}
+  const cx=sx/c*st,cy=sy/c*st,dist=Math.hypot(cx-w/2,cy-h/2)/w;
+  const score=c*(1-dist);
+  if(!best||score>best.score)best={score,cx,cy,r:(maxx-minx+1)*st/2};
+ }
+ if(!best)best={cx:w/2,cy:h/2,r:w/20};
+ S.p={x:best.cx,y:best.cy};S.pr=best.r;
+ // corneal apex: strongest outer edge along pupil row in the projecting direction
+ const dir=+$('side').value,row=Math.round(S.p.y);
+ let maxg=0;const gr=[];
+ const start=Math.round(S.p.x+dir*S.pr*1.3);
+ for(let x=start;x>2&&x<w-3;x+=dir){
+  let s=0;for(let yy=-3;yy<=3;yy++){const r=Math.min(h-1,Math.max(0,row+yy));s+=g[r*w+x+dir*2]-g[r*w+x-dir*2];}
+  const v=Math.abs(s/7);gr.push([x,v]);if(v>maxg)maxg=v;}
+ let apex=gr.length?gr[0][0]:S.p.x+dir*S.pr*2;
+ for(const[x,v]of gr){if(v>maxg*.6){apex=x;break;}}
+ S.apex=apex;
+ placeCC();
+}
+function placeCC(){
+ const dir=+$('side').value,R=7.8*getScale();
+ S.c={x:S.apex-dir*R,y:S.p.y};render();
+}
+/* ---------- data ---------- */
+const K='glaucoband3',DEF={t:[25,50,75],off:0,price:49};
+const day=n=>new Date(Date.now()-n*864e5).toISOString().slice(0,10);
+function risk(acd,u,t){t=t||D.set.t;let p=Math.max(0,Math.min(1,(3.4-acd)/1.4))*75;p+=(u.a>=60?8:u.a>=40?4:0)+(u.hy?8:0)+(u.fh?8:0);p=Math.min(99,Math.round(p));return{pct:p,cat:p<t[0]?'Low':p<t[1]?'Moderate':p<t[2]?'High':'Critical'}}
+function seed(){return{P:[],M:[],N:[],AP:[],AL:[],C:[],set:DEF}}
+let D;try{D=JSON.parse(localStorage.getItem(K))}catch(e){}
+if(!D)D=seed();
+function persist(){try{localStorage.setItem(K,JSON.stringify(D))}catch(e){D.M.forEach(m=>delete m.th);try{localStorage.setItem(K,JSON.stringify(D))}catch(e){}}}
+addEventListener('storage',e=>{if(e.key==K&&e.newValue){D=JSON.parse(e.newValue);shell();toast('Updated from another tab/device session')}});
+const A={role:'patient',view:'screen',pid:'',lang:'en',sel:null,rep:null};
+const NAV={patient:['screen','history','appts','about'],doctor:['screen','patients','alerts','compare','model','appts','about'],admin:['analytics','records','settings','billing','about']};
+const L={en:{screen:'Screen',history:'My history',appts:'Appointments',about:'About',patients:'Patients',alerts:'Alerts',compare:'Compare devices',model:'AI model',records:'Patient records',analytics:'Analytics',settings:'Settings',billing:'Billing'},
+ ta:{screen:'ஸ்கேன்',history:'என் வரலாறு',appts:'சந்திப்புகள்',about:'பற்றி'},hi:{screen:'स्कैन',history:'मेरा इतिहास',appts:'अपॉइंटमेंट',about:'जानकारी'}};
+const lb=k=>(L[A.lang][k]||L.en[k]);
+const VO={en:['Hold the phone steady, two to four centimetres from the eye. Align the yellow line with the corneal apex.',(x,c)=>`Anterior chamber depth ${x} millimetres. ${c} risk.`],
+ ta:['தொலைபேசியை கண்ணிலிருந்து இரண்டு முதல் நான்கு சென்டிமீட்டர் தூரத்தில் நிலையாகப் பிடிக்கவும்.',(x,c)=>`முன்புற அறை ஆழம் ${x} மில்லிமீட்டர். ${c} ஆபத்து.`],
+ hi:['फ़ोन को आँख से दो से चार सेंटीमीटर दूर स्थिर पकड़ें।',(x,c)=>`पूर्वकाल कक्ष गहराई ${x} मिलीमीटर। जोखिम ${c}।`]};
+function say(t){if(!$('voice').checked||!window.speechSynthesis)return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang={en:'en-IN',ta:'ta-IN',hi:'hi-IN'}[A.lang];speechSynthesis.speak(u)}
+let tt;function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(tt);tt=setTimeout(()=>t.style.display='none',3500)}
+const usr=(id)=>D.P.find(p=>p.id==(id||A.pid))||D.P[0],pill=c=>`<span class="pill" style="background:var(--${c})">${c}</span>`;
+const mine=id=>D.M.filter(m=>m.pid==id).sort((a,b)=>a.ts<b.ts?-1:1);
+/* ---------- shell ---------- */
+function shell(){
+ if(!D.P.find(p=>p.id==A.pid))A.pid=D.P[0]?D.P[0].id:'';$('role').value=A.role;$('who').style.display=A.role=='patient'?'':'none';
+ $('who').innerHTML=D.P.map(p=>`<option value="${p.id}">${esc(p.n)} (${p.id})</option>`).join('');$('who').value=A.pid;
+ if(!NAV[A.role].includes(A.view))A.view=NAV[A.role][0];
+ view()}
+function view(){
+ const un=D.AL.filter(a=>!a.read).length;
+ $('nav').innerHTML=NAV[A.role].map(k=>`<a class="${A.view==k?'on':''}" onclick="A.view='${k}';A.rep=null;view()">${lb(k)}${k=='alerts'&&un?`<em>${un}</em>`:''}</a>`).join('');
+ const emp=!D.P.length&&['screen','history'].includes(A.view);
+ $('app').innerHTML=A.rep?vReport():emp?vEmpty():V[A.view]();
+ if(A.view=='screen'&&!A.rep&&!emp)mountScreen();
+ if(A.rep)mountQR()}
+/* ---------- screening ---------- */
+const GUIDE=['Mount the phone on the 3D-printed temporal mount (or hold it 2–4 cm from the eye).','Use natural or room light and the rear camera. Avoid reflections on the cornea.','Take a side-view photo with the corneal apex and pupil centre in focus.','Check the markers (green = pupil centre, red = corneal curvature centre); drag to correct.','Save. Risk is computed and high-risk results alert the doctor.'];
+V={};
+V.screen=()=>{const u=usr();return`<div class="g2"><div><div class="stage" id="stage"><span id="empty">Take or upload a temporal side-view eye photo to begin.</span></div>
+<p class="mut np">Drag the green/red markers to fine-tune. Everything is processed in your browser; images are not uploaded.</p></div>
+<div><div class="card"><h2>${lb('screen')}</h2>
+${A.role!='patient'?`<div class="row"><select onchange="A.pid=this.value;view()">${D.P.map(p=>`<option value="${p.id}" ${p.id==A.pid?'selected':''}>${esc(p.n)}</option>`).join('')}</select></div>`:`<p class="mut">${esc(u.n)} · ${u.a} y · ${u.id}</p>`}
+<div class="row"><select id="eye"><option>OD</option><option>OS</option></select><select id="side"><option value="0">Cornea side: auto</option><option value="1">Cornea points right</option><option value="-1">Cornea points left</option></select></div>
+<div class="row"><label><button type="button" onclick="$('cam').click()">📷 Capture</button></label><button class="o" onclick="$('upl').click()">Upload</button><button class="o" id="redo" disabled onclick="run()">Re-detect</button><button class="o" onclick="say(VO[A.lang][0])">🔊 Guide</button></div>
+<label class="np"><input type="checkbox" ${S.asv?'checked':''} onchange="S.asv=this.checked"> Auto-save result when confident</label>
+<label class="np">Ruler length in photo (cm) <input type="number" value="${S.rl}" min="1" step=".5" style="width:70px" onchange="S.rl=+this.value||5;S.img&&run()"></label>
+<input id="cam" type="file" accept="image/*" capture="environment" hidden onchange="load(this.files[0])"><input id="upl" type="file" accept="image/*" hidden onchange="load(this.files[0])">
+<div id="res" class="mut">Result appears here (about 30 s end to end).</div></div>
+<div class="card"><h3>Steps</h3><ol style="padding-left:18px;margin:0">${GUIDE.map(g=>`<li>${g}</li>`).join('')}</ol></div></div></div>`};
+function mountScreen(){$('stage').appendChild(cv);cv.hidden=!S.img;if(S.img)$('empty').hidden=true;$('side').value=S.side;$('eye').value=S.eye;
+ $('side').onchange=()=>{S.side=+$('side').value;S.img&&run()};$('eye').onchange=()=>S.eye=$('eye').value;$('redo').disabled=!S.img;if(S.img)render();else say(VO[A.lang][0])}
+function load(f){if(!f)return;const fr=new FileReader();fr.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,MAXW/im.width);cv.width=Math.round(im.width*k);cv.height=Math.round(im.height*k);S.img=im;S.manual=false;S.scale=null;S.p=null;cv.hidden=false;ctx.drawImage(im,0,0,cv.width,cv.height);$('empty').hidden=true;$('redo').disabled=false;S.t0=Date.now();run()};im.onerror=()=>toast('Could not read this image. Try a JPG or PNG photo.');im.src=fr.result};fr.onerror=()=>toast('Could not read this file.');fr.readAsDataURL(f)}
+const curMM=()=>Math.abs(S.p.x-S.c.x)/getScale()+D.set.off;
+function render(){if(!S.img||!S.p)return;const w=cv.width,h=cv.height,u=w/900,y=S.p.y,mm=curMM();
+ ctx.clearRect(0,0,w,h);ctx.drawImage(S.img,0,0,w,h);ctx.save();ctx.lineWidth=2.5*u;ctx.strokeStyle=ctx.fillStyle='#ffe600';ctx.shadowColor='#000';ctx.shadowBlur=3*u;
+ ctx.beginPath();ctx.moveTo(S.p.x,y);ctx.lineTo(S.c.x,y);ctx.moveTo(S.apex,y-45*u);ctx.lineTo(S.apex,y+45*u);ctx.stroke();
+ ctx.font='bold '+26*u+'px sans-serif';[[S.p.x,S.dir],[S.c.x,-S.dir]].forEach(([x,s])=>{ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+s*16*u,y-7*u);ctx.lineTo(x+s*16*u,y+7*u);ctx.fill()});
+ if(S.rul){ctx.strokeStyle='#00e5ff';ctx.beginPath();ctx.moveTo(S.rul.x,S.rul.y0);ctx.lineTo(S.rul.x,S.rul.y1);ctx.stroke();ctx.strokeStyle='#ffe600'}
+ ctx.textAlign=S.dir>0?'left':'right';ctx.fillText((mm/10).toFixed(2)+' cm',S.dir>0?Math.max(S.p.x,S.c.x)+16*u:Math.min(S.p.x,S.c.x)-16*u,y+9*u);ctx.textAlign='left';ctx.shadowBlur=0;
+ [[S.p,'#3cff78'],[S.c,'#ff5050']].forEach(([p,c])=>{ctx.strokeStyle=c;ctx.beginPath();ctx.arc(p.x,p.y,9*u,0,7);ctx.stroke()});ctx.restore();showRes(1)}
+function showRes(sp){const e=$('res');if(!e||!S.p)return;const u=usr(),acd=+curMM().toFixed(2),r=rk(acd,u);
+ e.innerHTML=`<div class="row"><div class="big">${acd.toFixed(2)}<small style="font-size:16px"> mm</small></div>${pill(r.cat)}<span>${r.pct}% risk${r.ai?' (TF model)':''}</span></div><div class="bar"><i style="width:${r.pct}%;background:var(--${r.cat})"></i></div>
+ ${twin(acd,r.cat)}${S.conf===0?'<p style="color:var(--High)">⚠ Low confidence: retake in even light, side-on, or drag the markers.</p>':''}<p class="mut">${S.side?'':`Cornea side auto-detected (${S.dir>0?'right':'left'}). `}Normal ACD ≈ 2.5–3.5 mm. ${rec(r.cat)} Scale: ${S.sc=='ruler'?'from the ruler in the photo.':'estimated (no ruler found); include a ruler for accuracy.'}</p>${S.ai?`<p>CNN suggests <b>${S.ai.mm.toFixed(2)} mm</b> <button class="o" onclick="useAI()">Use CNN markers</button></p>`:''}<button onclick="save()">Save to ${esc(u.n.split(' ')[0])}'s records</button>`;
+ if(sp&&S.t0){S.t0=0;say(VO[A.lang][1](acd.toFixed(1),r.cat))}}
+const rec=c=>({Low:'Routine re-screen in 12 months.',Moderate:'Re-screen in 3–6 months; consider clinical review.',High:'Refer to an ophthalmologist for gonioscopy / AS-OCT and IOP check.',Critical:'Urgent ophthalmology referral.'})[c];
+function save(){const u=usr(),acd=+curMM().toFixed(2),r=rk(acd,u),t=document.createElement('canvas');t.width=320;t.height=Math.round(320*cv.height/cv.width);t.getContext('2d').drawImage(S.img,0,0,t.width,t.height);
+ const m={id:'m'+Date.now(),pid:u.id,eye:S.eye,acd,pct:r.pct,cat:r.cat,ts:day(0),th:t.toDataURL('image/jpeg',.5),k:[S.p.x/cv.width,S.p.y/cv.height,S.c.x/cv.width],dir:S.dir};D.M.push(m);
+ if(r.pct>=D.set.t[1]){D.AL.push({id:'l'+Date.now(),pid:u.id,ts:day(0),msg:`${r.cat} risk (ACD ${acd.toFixed(2)} mm)`,read:0});toast(`Saved. ${r.cat} risk: alert sent to doctor.`)}else toast('Saved.');
+ persist();A.view=A.role=='patient'?'history':'screen';if(A.role!='patient'){A.rep=m.id}view()}
+cv.onpointerdown=e=>{if(!S.p)return;const q=pos(e),u=cv.width/900;const dp=Math.hypot(q.x-S.p.x,q.y-S.p.y),dc=Math.hypot(q.x-S.c.x,q.y-S.p.y);S.drag=Math.min(dp,dc)<60*u?(dp<=dc?'p':'c'):null;if(S.drag)cv.setPointerCapture(e.pointerId)};
+cv.onpointermove=e=>{if(!S.drag)return;const q=pos(e);if(S.drag=='p'){S.p.x=q.x;S.p.y=q.y;S.c.y=q.y}else{S.c.x=q.x;S.apex=q.x}render()};cv.onpointerup=()=>S.drag=null;
+function pos(e){const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*cv.width/r.width,y:(e.clientY-r.top)*cv.height/r.height}}
+/* ---------- history / report ---------- */
+function chart(ms){if(!ms.length)return'<p class="mut">No scans yet.</p>';const W=520,H=210,p=34,lo=1.5,hi=4,x=i=>p+(ms.length<2?(W-2*p)/2:i*(W-2*p)/(ms.length-1)),y=v=>H-p-(v-lo)/(hi-lo)*(H-2*p);
+ return`<svg viewBox="0 0 ${W} ${H}" class="ch"><rect x="${p}" y="${y(3.5)}" width="${W-2*p}" height="${y(2.5)-y(3.5)}" fill="var(--Low)" opacity=".15"/><text x="${p+4}" y="${y(3.5)+12}" font-size="10" fill="var(--mut)">normal 2.5–3.5 mm</text>
+ ${[2,3,4].map(v=>`<text x="4" y="${y(v)+3}" font-size="10" fill="var(--mut)">${v} mm</text>`).join('')}<polyline fill="none" stroke="var(--ac)" stroke-width="3" points="${ms.map((m,i)=>x(i)+','+y(m.acd)).join(' ')}"/>
+ ${ms.map((m,i)=>`<circle cx="${x(i)}" cy="${y(m.acd)}" r="5" fill="var(--${m.cat})"/><text x="${x(i)}" y="${H-8}" font-size="10" text-anchor="middle" fill="var(--mut)">${m.ts.slice(5)}</text>`).join('')}</svg>`}
+function pdetail(id,doc){const u=usr(id),ms=mine(id),ns=D.N.filter(n=>n.pid==id);
+ return`<div class="card"><h2>${esc(u.n)} <small class="mut">${u.id} · ${u.a} y · ${u.s}${u.hy?' · hyperopic':''}${u.fh?' · family history':''}</small></h2>${chart(ms)}
+ <div class="tbl"><table><tr><th>Date</th><th>Eye</th><th>ACD</th><th>Risk</th><th>Confirmed dx</th><th></th></tr>${ms.slice().reverse().map(m=>`<tr><td>${m.ts}</td><td>${m.eye}</td><td>${m.acd.toFixed(2)} mm</td><td>${pill(m.cat)} ${m.pct}%</td><td>${doc?`<select onchange="setGT('${m.id}',this.value)"><option value="">–</option>${['Low','Moderate','High','Critical'].map((c,i)=>`<option value="${i}" ${m.gt===i?'selected':''}>${c}</option>`).join('')}</select>`:(m.gt!=null?['Low','Moderate','High','Critical'][m.gt]:'')}</td><td><a href="#" onclick="A.rep='${m.id}';view();return false">Report</a></td></tr>`).join('')}</table></div>
+ <div class="row np"><button class="o" onclick="csv('${id}')">Export CSV</button></div></div>
+ <div class="card"><h3>Doctor notes &amp; prescriptions</h3>${ns.map(n=>`<p><b>${n.k}</b> <span class="mut">${n.ts}</span><br>${esc(n.t)}</p>`).join('')||'<p class="mut">None yet.</p>'}
+ ${doc?`<div class="row"><select id="nk"><option>Note</option><option>Prescription</option></select><input id="nt" placeholder="Write a note…" style="flex:1"><button onclick="addNote('${id}')">Add</button></div>`:''}</div>`}
+V.history=()=>pdetail(A.pid,0);
+function addNote(id){const t=$('nt').value.trim();if(!t)return;D.N.push({pid:id,ts:day(0),k:$('nk').value,t});persist();view()}
+function csv(id){const r=['date,patient,eye,acd_mm,risk_pct,category',...D.M.filter(m=>!id||m.pid==id).map(m=>[m.ts,m.pid,m.eye,m.acd,m.pct,m.cat].join(','))];const a=document.createElement('a');a.href='data:text/csv,'+encodeURIComponent(r.join('\n'));a.download='glaucoband.csv';a.click()}
+function vReport(){const m=D.M.find(x=>x.id==A.rep),u=usr(m.pid);return`<div class="card rep"><div class="row np"><button class="o" onclick="A.rep=null;view()">← Back</button><button onclick="print()">Print / Save PDF</button></div>
+ <h2>Glaucoband screening report</h2><p class="mut">${m.ts} · Eye ${m.eye}</p><p><b>${esc(u.n)}</b> · ${u.a} y · ${u.s} · ID ${u.id}</p>
+ <div class="row"><div class="big">${m.acd.toFixed(2)}<small style="font-size:16px"> mm</small></div>${pill(m.cat)}<b>${m.pct}% risk</b></div><div class="bar"><i style="width:${m.pct}%;background:var(--${m.cat})"></i></div>
+ ${twin(m.acd,m.cat)}<p>${rec(m.cat)}</p>${m.th?`<img src="${m.th}" alt="scan" style="max-width:320px;border-radius:8px">`:''}${chart(mine(u.id))}
+ <div class="row"><div id="qr"></div><span class="mut">Patient ID QR: ${u.id}. Share with your doctor.</span></div>
+ <p class="mut">Screening aid only; not a diagnosis. Confirm with IOP, gonioscopy and AS-OCT.</p></div>`}
+function mountQR(){try{const q=qrcode(0,'M');q.addData(`${A.rep}|${D.M.find(x=>x.id==A.rep).pid}`);q.make();$('qr').innerHTML=q.createSvgTag(4)}catch(e){}}
+/* ---------- doctor ---------- */
+V.patients=()=>{if(A.sel)return`<button class="o np" onclick="A.sel=null;view()">← Patients</button>`+pdetail(A.sel,1);
+ return`<div class="card"><h2>Patients</h2><div class="tbl"><table><tr><th>ID</th><th>Name</th><th>Age</th><th>Last ACD</th><th>Risk</th><th></th></tr>${D.P.map(p=>{const l=mine(p.id).pop();return`<tr><td>${p.id}</td><td>${esc(p.n)}</td><td>${p.a}</td><td>${l?l.acd.toFixed(2):'–'}</td><td>${l?pill(l.cat):'–'}</td><td><a href="#" onclick="A.sel='${p.id}';view();return false">Open</a></td></tr>`}).join('')}</table></div></div>
+ <div class="card"><h3>Add patient</h3><div class="row"><input id="pn" placeholder="Name"><input id="pa" type="number" placeholder="Age" style="width:80px"><select id="ps"><option>F</option><option>M</option></select><label><input type="checkbox" id="ph"> Hyperopic</label><label><input type="checkbox" id="pf"> Family history</label><button onclick="addP()">Add</button></div></div>`};
+const vEmpty=()=>`<div class="card"><h2>No patients yet</h2><p class="mut">Register the first patient to start screening. All data stays in this browser.</p><div class="row"><input id="pn" placeholder="Name"><input id="pa" type="number" placeholder="Age" style="width:80px"><select id="ps"><option>F</option><option>M</option></select><label><input type="checkbox" id="ph"> Hyperopic</label><label><input type="checkbox" id="pf"> Family history</label><button onclick="addP()">Register</button></div></div>`;
+function addP(){const n=$('pn').value.trim(),a=+$('pa').value;if(!n||!a)return toast('Name and age needed');D.P.push({id:'GB-'+(D.nid=(D.nid||1000)+1),n,a,s:$('ps').value,hy:+$('ph').checked,fh:+$('pf').checked});if(D.P.length==1)A.pid=D.P[0].id;persist();shell()}
+V.alerts=()=>queue()+`<div class="card"><h2>Real-time alerts</h2>${D.AL.slice().reverse().map(a=>`<div class="row"><span>${a.read?'':'🔴'}</span><b>${esc(usr(a.pid).n)}</b><span>${a.msg}</span><span class="mut">${a.ts}</span><button class="o" onclick="A.view='patients';A.sel='${a.pid}';D.AL.find(x=>x.id=='${a.id}').read=1;persist();view()">Review</button></div>`).join('')||'<p class="mut">No alerts.</p>'}
+<p class="mut">Alerts fire when a saved scan reaches the “High” threshold and sync live across open tabs.</p></div>`;
+const mean=a=>a.reduce((s,x)=>s+x,0)/a.length,sd=a=>{const m=mean(a);return Math.sqrt(a.reduce((s,x)=>s+(x-m)**2,0)/(a.length-1||1))};
+function icc(a,b){const n=a.length,gm=(mean(a)+mean(b))/2;let ssr=0,sst=0;for(let i=0;i<n;i++){const r=(a[i]+b[i])/2;ssr+=2*(r-gm)**2;sst+=(a[i]-gm)**2+(b[i]-gm)**2}const ssc=n*((mean(a)-gm)**2+(mean(b)-gm)**2),mse=(sst-ssr-ssc)/(n-1),msr=ssr/(n-1);return(msr-mse)/(msr+mse)}
+const ic=v=>v>=.9?'Excellent':v>=.75?'Good':v>=.5?'Moderate':'Poor';
+V.compare=()=>{if(D.C.length<3)return`<div class="card"><h2>Smartphone vs IOLMaster vs AS-OCT</h2><p class="mut">No readings yet. Add at least 3 paired ACD readings (mm) to see ICC, bias and the Bland–Altman plot. You have ${D.C.length}.</p><div class="row np"><input id="cp" placeholder="Subject" style="width:110px"><input id="ci" type="number" step=".01" placeholder="IOLMaster" style="width:100px"><input id="ca" type="number" step=".01" placeholder="AS-OCT" style="width:100px"><input id="cg" type="number" step=".01" placeholder="Glaucoband" style="width:100px"><button onclick="addC()">Add pair</button></div></div>`;
+ const C=D.C,io=C.map(c=>c.io),as=C.map(c=>c.as),gb=C.map(c=>c.gb),df=gb.map((g,i)=>g-io[i]),b=mean(df),s=sd(df),ms=gb.map((g,i)=>(g+io[i])/2);
+ const W=420,H=180,X=v=>30+(v-Math.min(...ms)+.1)/(Math.max(...ms)-Math.min(...ms)+.2)*(W-50),Y=v=>H/2-(v-b)*80;
+ const row=(n,a,c)=>`<tr><td>${n}</td><td>${mean(a).toFixed(2)} ± ${sd(a).toFixed(2)}</td><td>${c}</td></tr>`;
+ return`<div class="card"><h2>Smartphone vs IOLMaster vs AS-OCT</h2><p class="mut">Paired ACD readings (mm). Add your own below.</p><div class="g2"><div class="tbl"><table><tr><th>Subject</th><th>IOLMaster</th><th>AS-OCT</th><th>Glaucoband</th></tr>${C.map(c=>`<tr><td>${esc(c.pid)}</td><td>${c.io}</td><td>${c.as}</td><td>${c.gb}</td></tr>`).join('')}</table></div>
+ <div><table><tr><th>Method</th><th>Mean ± SD</th><th></th></tr>${row('IOLMaster',io,'ref')}${row('AS-OCT',as,'ref')}${row('Glaucoband',gb,'')}</table>
+ <p>ICC (consistency): Glaucoband vs IOLMaster <b>${icc(gb,io).toFixed(3)}</b> (${ic(icc(gb,io))}); vs AS-OCT <b>${icc(gb,as).toFixed(3)}</b> (${ic(icc(gb,as))}); IOLMaster vs AS-OCT <b>${icc(io,as).toFixed(3)}</b>.</p>
+ <p>Bias (Glaucoband − IOLMaster): <b>${b.toFixed(2)} mm</b>; 95% limits of agreement ${(b-1.96*s).toFixed(2)} to ${(b+1.96*s).toFixed(2)} mm. A constant bias can be corrected with the calibration offset in Settings.</p>
+ <svg viewBox="0 0 ${W} ${H}" class="ch"><line x1="30" x2="${W-10}" y1="${Y(b)}" y2="${Y(b)}" stroke="var(--ac)"/><line x1="30" x2="${W-10}" y1="${Y(b+1.96*s)}" y2="${Y(b+1.96*s)}" stroke="var(--High)" stroke-dasharray="4"/><line x1="30" x2="${W-10}" y1="${Y(b-1.96*s)}" y2="${Y(b-1.96*s)}" stroke="var(--High)" stroke-dasharray="4"/>${df.map((d,i)=>`<circle cx="${X(ms[i])}" cy="${Y(d)}" r="4" fill="var(--ac)"/>`).join('')}<text x="30" y="12" font-size="10" fill="var(--mut)">Bland–Altman: difference vs mean</text></svg></div></div>
+ <div class="row np"><input id="cp" placeholder="Subject" style="width:110px"><input id="ci" type="number" step=".01" placeholder="IOLMaster" style="width:100px"><input id="ca" type="number" step=".01" placeholder="AS-OCT" style="width:100px"><input id="cg" type="number" step=".01" placeholder="Glaucoband" style="width:100px"><button onclick="addC()">Add pair</button></div></div>`};
+function addC(){const c={pid:$('cp').value||'Subject '+(D.C.length+1),io:+$('ci').value,as:+$('ca').value,gb:+$('cg').value};if(!c.io||!c.as||!c.gb)return toast('Enter all three readings');D.C.push(c);persist();view()}
+V.appts=()=>{const L=A.role=='patient'?D.AP.filter(a=>a.pid==A.pid):D.AP;return`<div class="card"><h2>Appointments</h2>${A.role=='patient'?`<div class="row"><input type="date" id="ad"><input id="aw" placeholder="Reason" style="flex:1"><button onclick="book()">Request</button></div>`:''}
+ <div class="tbl"><table><tr><th>Date</th><th>Patient</th><th>Reason</th><th>Status</th><th></th></tr>${L.map(a=>`<tr><td>${a.date}</td><td>${esc(usr(a.pid).n)}</td><td>${esc(a.why)}</td><td>${a.st}</td><td>${A.role=='doctor'&&a.st!='Completed'?`<button class="o" onclick="D.AP.find(x=>x.id=='${a.id}').st='${a.st=='Requested'?'Confirmed':'Completed'}';persist();view()">${a.st=='Requested'?'Confirm':'Complete'}</button>`:''}</td></tr>`).join('')}</table></div></div>`};
+function book(){if(!$('ad').value)return toast('Pick a date');D.AP.push({id:'a'+Date.now(),pid:A.pid,date:$('ad').value,why:$('aw').value||'Eye check',st:'Requested'});persist();view()}
+/* ---------- admin ---------- */
+V.analytics=()=>{const c={Low:0,Moderate:0,High:0,Critical:0};D.P.forEach(p=>{const l=mine(p.id).pop();if(l)c[l.cat]++});const n=D.P.length||1;
+ return impact()+`<div class="card"><h2>Analytics</h2><div class="kpi"><div><b>${D.P.length}</b>Patients</div><div><b>${D.M.length}</b>Scans</div><div><b>${(mean(D.M.map(m=>m.acd))||0).toFixed(2)}</b>Mean ACD (mm)</div><div><b>${D.AL.length}</b>Alerts raised</div></div></div>
+ <div class="card"><h3>Latest risk per patient</h3>${Object.keys(c).map(k=>`<div class="row"><span style="width:90px">${k}</span><div class="bar" style="flex:1"><i style="width:${c[k]/n*100}%;background:var(--${k})"></i></div><b>${c[k]}</b></div>`).join('')}
+ <div class="row np"><button class="o" onclick="csv()">Export all scans (CSV)</button></div></div>`};
+V.settings=()=>`<div class="card"><h2>System settings</h2><p class="mut">Risk-category cut-offs (% risk) and calibration. Thresholds are prototype defaults and must be clinically validated.</p>
+ <div class="row">Moderate ≥ <input id="t0" type="number" value="${D.set.t[0]}" style="width:70px"> High ≥ <input id="t1" type="number" value="${D.set.t[1]}" style="width:70px"> Critical ≥ <input id="t2" type="number" value="${D.set.t[2]}" style="width:70px"></div>
+ <div class="row">Calibration offset (mm) <input id="of" type="number" step=".01" value="${D.set.off}" style="width:80px"> Price per screening (₹) <input id="pr" type="number" value="${D.set.price}" style="width:80px"></div>
+ <div class="row"><button onclick="D.set={t:[+$('t0').value,+$('t1').value,+$('t2').value],off:+$('of').value,price:+$('pr').value};persist();toast('Settings saved')">Save</button><button class="o" onclick="rstAll()">${A.cf=='reset'?'Confirm: erase everything':'Reset all patient data'}</button></div></div>`;
+V.billing=()=>{const p=D.set.price;return`<div class="card"><h2>Billing</h2><div class="kpi"><div><b>₹${D.M.length*p}</b>Billed to date</div><div><b>₹${p}</b>Per screening</div></div><div class="tbl"><table><tr><th>Patient</th><th>Scans</th><th>Amount</th></tr>${D.P.map(u=>{const n=mine(u.id).length;return`<tr><td>${esc(u.n)}</td><td>${n}</td><td>₹${n*p}</td></tr>`}).join('')}</table></div><p class="mut">Versus ₹5,000–₹10,000 per conventional screening.</p></div>`};
+/* ---------- about ---------- */
+V.about=()=>{const mk=(n,v,w)=>`<div class="row"><span style="width:60px">${n}</span><div class="bar" style="flex:1"><i style="width:${w}%;background:var(--ac)"></i></div><b>${v}</b></div>`;
+ return impact()+`<div class="card"><h2>The problem</h2><div class="kpi"><div><b>1.6 crore</b>Indians with glaucoma</div><div><b>70–90%</b>undiagnosed until late</div><div><b>1 : 300,000</b>ophthalmologist ratio</div><div><b>₹15–25 L</b>diagnostic equipment</div><div><b>₹5–10 K</b>per screening</div><div><b>60–70%</b>accuracy of existing apps</div></div></div>
+ <div class="card"><h2>Existing methods vs Glaucoband</h2><div class="tbl"><table><tr><th>Method</th><th>Function</th><th>Cost</th><th>Accuracy</th></tr><tr><td>Lenstar LS 900 / IOLMaster</td><td>Optical biometry</td><td>₹15–30 L</td><td>95%</td></tr><tr><td>Anterior segment OCT</td><td>3D imaging</td><td>₹40–50 L</td><td>98%</td></tr><tr><td><b>Glaucoband</b></td><td>Smartphone side-view ACD + risk</td><td>3D-printed mount + app</td><td>ICC 0.996 (inter-examiner)</td></tr></table></div>
+ <p>Targets: radical affordability, AI trained on Indian eyes, 30-second scans with Tamil / Hindi voice guidance and no specialist required.</p></div>
+ <div class="card"><h2>Validation snapshot</h2><p>Mean ACD: IOLMaster 3.36 ± 0.12 mm · AS-OCT 2.89 ± 0.11 mm · Smartphone 2.50 ± 0.09 mm. Mean bias IOLMaster vs AS-OCT +0.4688 mm. Inter-examiner ICC 0.996 (95% CI 0.990–0.998).</p></div>
+ <div class="card"><h2>Market (India, app-based screening)</h2>${mk('TAM','₹194 B',100)}${mk('SAM','₹7.5 B',22)}${mk('SOM','₹375 M',8)}<p class="mut">Growth 9.2% → 18.5% → 25% · SOM target users: 375,000 · Users: patients 40+, high-risk individuals, ophthalmologists, glaucoma specialists, primary-care physicians. Bars are not to scale.</p></div>
+ <div class="card"><h2>Architecture</h2><p>Patient and doctor dashboards, admin web console, risk engine and storage. This prototype runs fully in the browser (local storage). Production plan: Flutter apps, Node.js/Express API with auth middleware, PostgreSQL, TensorFlow model, 3D-printed mount designed in Fusion 360.</p>
+ <p class="mut">Prototype limits: ACD comes from classical image analysis (pupil centre to corneal curvature centre), optionally cross-checked by a small TensorFlow.js CNN that you train on your own saved scans (Doctor › AI model). Risk % is a rule of ACD, age, hyperopia and family history unless the TF.js risk network is trained. No model here is clinically validated. Research use only.</p></div>`};
+/* ---------- TensorFlow.js models ---------- */
+const TF=typeof tf!='undefined';let RM=null,CM=null;
+const feat=(a,u)=>[a-2.5,u.a/100,u.hy,u.fh,u.s=='F'?1:0],CI={Low:0,Moderate:1,High:2,Critical:3};
+function rk(a,u){if(!RM)return risk(a,u);const p=tf.tidy(()=>RM.predict(tf.tensor2d([feat(a,u)])).dataSync()),pct=Math.min(99,Math.round(p[0]*12+p[1]*37+p[2]*62+p[3]*87)),t=D.set.t;return{pct,cat:pct<t[0]?'Low':pct<t[1]?'Moderate':pct<t[2]?'High':'Critical',ai:1}}
+function setGT(id,v){D.M.find(m=>m.id==id).gt=v===''?null:+v;persist();toast('Diagnosis label saved')}
+
+const prep=(im,dir,sz=64)=>tf.tidy(()=>{const c=document.createElement('canvas');c.width=320;c.height=Math.max(1,Math.round(320*(im.naturalHeight||im.height)/(im.naturalWidth||im.width)));c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+ let x=tf.image.resizeBilinear(tf.browser.fromPixels(c,3).toFloat().mul(tf.tensor1d([.299,.587,.114])).sum(-1,true),[sz,sz]).div(255);if(dir<0)x=x.reverse(1);return x.expandDims(0)});
+const loadImg=s=>new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.src=s});
+
+function aiSuggest(){S.ai=null;if(!CM||!S.img)return;const o=tf.tidy(()=>CM.predict(prep(S.img,S.dir,CM.inputs[0].shape[1])).dataSync()),w=cv.width,h=cv.height;let[a,b,c]=o;if(S.dir<0){a=1-a;c=1-c}S.ai={px:a*w,py:b*h,cx:c*w};S.ai.mm=Math.abs(S.ai.px-S.ai.cx)/getScale()+D.set.off;showRes(0)}
+function useAI(){S.p={x:S.ai.px,y:S.ai.py};S.c={x:S.ai.cx,y:S.ai.py};S.apex=S.c.x+S.dir*7.8*getScale();S.ai=null;render()}
+
+async function trainRisk(){
+ const X=[],Y=[];D.M.forEach(m=>{if(m.gt!=null){X.push(feat(m.acd,usr(m.pid)));Y.push(m.gt)}});const n=X.length;
+ if(n<20)return toast(`Need 20+ doctor-confirmed scans (have ${n})`);
+ const net=tf.sequential();net.add(tf.layers.dense({units:16,activation:'relu',inputShape:[5]}));net.add(tf.layers.dense({units:8,activation:'relu'}));net.add(tf.layers.dense({units:4,activation:'softmax'}));net.compile({optimizer:tf.train.adam(.01),loss:'categoricalCrossentropy',metrics:['accuracy']});
+ const h=await net.fit(tf.tensor2d(X),tf.oneHot(tf.tensor1d(Y,'int32'),4),{epochs:60,batchSize:8,shuffle:true,validationSplit:.2,callbacks:{onEpochEnd:(e,l)=>{if($('tlog'))$('tlog').textContent=`Risk net epoch ${e+1}/60, loss ${l.loss.toFixed(3)}`}}});
+ const va=h.history.val_acc||h.history.val_accuracy;RM=net;await net.save('indexeddb://gb-risk');D.mdl={at:day(0),n,acc:va[va.length-1]};persist();toast('Risk network trained and active');view()}
+async function trainCNN(){const ms=D.M.filter(m=>m.th&&m.k);if(ms.length<12)return toast(`Need 12+ saved scans with photos (have ${ms.length})`);
+ const xs=[],ys=[];for(const m of ms){xs.push(prep(await loadImg(m.th),m.dir));const[a,b,c]=m.k;ys.push(m.dir<0?[1-a,b,1-c]:[a,b,c])}
+ const net=tf.sequential();net.add(tf.layers.conv2d({inputShape:[64,64,1],filters:8,kernelSize:3,activation:'relu'}));net.add(tf.layers.maxPooling2d({poolSize:2}));net.add(tf.layers.conv2d({filters:16,kernelSize:3,activation:'relu'}));net.add(tf.layers.maxPooling2d({poolSize:2}));net.add(tf.layers.flatten());net.add(tf.layers.dropout({rate:.3}));net.add(tf.layers.dense({units:32,activation:'relu'}));net.add(tf.layers.dense({units:3,activation:'sigmoid'}));net.compile({optimizer:tf.train.adam(.003),loss:'meanSquaredError'});
+ const h=await net.fit(tf.concat(xs),tf.tensor2d(ys),{epochs:80,batchSize:4,shuffle:true,callbacks:{onEpochEnd:(e,l)=>{if($('tlog'))$('tlog').textContent=`CNN epoch ${e+1}/80, loss ${l.loss.toFixed(4)}`}}});
+ CM=net;await net.save('indexeddb://gb-loc');D.cnn={at:day(0),n:ms.length,loss:h.history.loss.slice(-1)[0]};persist();toast('CNN trained and active');view()}
+async function importM(){const f=[...$('imp').files],k=$('impk').value;if(f.length<2)return toast('Select model.json and its .bin file(s) together');
+ try{const m=await tf.loadLayersModel(tf.io.browserFiles(f)),i=m.inputs[0].shape,o=m.outputs[0].shape;
+  if(k=='gb-risk'){if(i[1]!=5||o[1]!=4)throw new Error('Risk model must take 5 inputs and output 4 classes');RM=m;D.mdl={at:day(0),imp:1}}
+  else{if(i.length!=4||i[3]!=1||o[1]!=3)throw new Error('Localiser must take a grey image and output 3 values');CM=m;D.cnn={at:day(0),imp:1}}
+  await m.save('indexeddb://'+k);persist();toast('Model imported and active');view()}catch(e){toast('Import failed: '+(e.message||e))}}
+function resetM(k){tf.io.removeModel('indexeddb://'+k).catch(()=>{});if(k=='gb-risk'){RM=null;delete D.mdl}else{CM=null;delete D.cnn}persist();view()}
+V.model=()=>{const gt=D.M.filter(m=>m.gt!=null).length,ph=D.M.filter(m=>m.th&&m.k).length;return`<div class="card"><h2>TensorFlow.js models</h2><p class="mut">Both models train and run inside this browser; no images leave the device.</p>${TF?'':'<p><b>TensorFlow.js did not load (offline?).</b></p>'}
+<h3>1. Glaucoma-risk network</h3><p>Dense net (ACD, age, sex, hyperopia, family history → 16 → 8 → 4 risk classes). Status: <b>${RM?'active':'not trained (rule-based risk in use)'}</b>${D.mdl?(D.mdl.imp?` · imported (Python-trained) ${D.mdl.at}`:` · trained ${D.mdl.at}, ${D.mdl.n} doctor labels, validation accuracy ${(D.mdl.acc*100).toFixed(0)}%`):''}</p>
+<p>It trains only on scans a doctor has labelled with a confirmed diagnosis (patient history › Confirmed dx). It needs 20+ labelled scans; you have ${gt}. No synthetic or sample data is used.</p>
+<div class="row"><button onclick="trainRisk()" ${TF?'':'disabled'}>Train / retrain</button><button class="o" onclick="resetM('gb-risk')">Remove</button></div>
+<h3>2. Marker-localisation CNN</h3><p>Small CNN (64×64 grey eye image → pupil x/y and corneal-curvature x). It learns from the markers saved with each scan and then proposes markers on new photos beside the classical result. Needs 12+ saved scans with photos (you have ${ph}). With so little data it is experimental. Status: <b>${CM?'active':'not trained'}</b>${D.cnn?(D.cnn.imp?` · imported (Python-trained) ${D.cnn.at}`:` · ${D.cnn.n} scans, final loss ${D.cnn.loss.toFixed(4)}`):''}</p>
+<div class="row"><button onclick="trainCNN()" ${TF?'':'disabled'}>Train CNN</button><button class="o" onclick="resetM('gb-loc')">Remove</button></div>
+<h3>3. Import a Python-trained model</h3><p>Train with <code>train_glaucoband.py</code>, then select the converted <code>model.json</code> and its <code>.bin</code> file(s) together.</p><div class="row"><select id="impk"><option value="gb-loc">Localiser CNN</option><option value="gb-risk">Risk network</option></select><input id="imp" type="file" multiple accept=".json,.bin"><button onclick="importM()" ${TF?'':'disabled'}>Import</button></div><p id="tlog" class="mut"></p></div>`};
+V.records=()=>`<div class="card"><h2>Patient records</h2><p class="mut">Deletion is permanent and removes data from this browser's storage. Export a CSV first if you need a copy. Each delete button asks for a second click to confirm.</p><div class="tbl"><table><tr><th>ID</th><th>Name</th><th>Scans</th><th>Notes</th><th>Appts</th><th></th></tr>${D.P.map(p=>`<tr><td>${p.id}</td><td>${esc(p.n)}</td><td>${D.M.filter(m=>m.pid==p.id).length}</td><td>${D.N.filter(n=>n.pid==p.id).length}</td><td>${D.AP.filter(a=>a.pid==p.id).length}</td><td><button class="o" onclick="delRec('${p.id}',0)">${A.cf==p.id+':0'?'Confirm clear':'Clear records'}</button> <button onclick="delRec('${p.id}',1)" style="background:var(--Critical)">${A.cf==p.id+':1'?'Confirm delete':'Delete patient'}</button></td></tr>`).join('')||'<tr><td colspan="6" class="mut">No patients registered yet.</td></tr>'}</table></div><div class="row"><button class="o" onclick="csv()">Export all scans (CSV)</button></div><p class="mut">Clear records removes a patient's scans, notes, appointments and alerts but keeps the profile. Delete patient removes everything, including the profile.</p></div>`;
+function rstAll(){if(A.cf!='reset'){A.cf='reset';toast('Click again to erase ALL patient data');return view()}
+ A.cf=null;D=seed();A.pid='';A.sel=null;A.rep=null;S.img=null;RM=null;CM=null;try{TF&&['gb-risk','gb-loc'].forEach(k=>tf.io.removeModel('indexeddb://'+k).catch(()=>{}))}catch(e){}persist();toast('All patient data erased');shell()}
+function delRec(id,all){if(A.cf!=id+':'+all){A.cf=id+':'+all;toast('Click again to confirm');return view()}
+ A.cf=null;D.M=D.M.filter(m=>m.pid!=id);D.N=D.N.filter(n=>n.pid!=id);D.AP=D.AP.filter(a=>a.pid!=id);D.AL=D.AL.filter(a=>a.pid!=id);
+ if(all){D.P=D.P.filter(x=>x.id!=id);if(A.pid==id)A.pid=D.P[0]?D.P[0].id:'';if(A.sel==id)A.sel=null}
+ A.rep=null;persist();toast(all?'Patient deleted':'Records cleared');shell()}
+function run(){const e=$('res');if(e)e.innerHTML='<p class="mut">\u23f3 Measuring automatically\u2026</p>';const t0=S.t0;S.t0=0;
+ setTimeout(()=>{try{S.manual=false;
+  if(S.side){S.dir=S.side;detect()}else{let b=null;for(const d of[1,-1]){S.dir=d;detect();if(!b||S.edge>b.e)b={e:S.edge,d}}S.dir=b.d;detect()}
+  S.conf=(S.loc?(S.iw/cv.width>.05&&S.iw/cv.width<.35):(S.pr/cv.width>.012&&S.pr/cv.width<.22&&S.edge>1.8))?1:0;S.t0=t0;render();aiSuggest();
+  if(S.asv){if(S.conf)save();else toast('Low confidence: not auto-saved. Check the markers.')}
+ }catch(err){const e2=$('res');if(e2)e2.innerHTML='<p style="color:var(--High)">Could not measure this photo automatically ('+esc(err.message||err)+'). Try a clearer side-view photo.</p>'}},30)}
+/* ---------- Angle Twin, referral queue, impact ---------- */
+function twin(a,cat){const lx=Math.max(80,Math.min(230,51+a*38)),c=`var(--${cat})`,lab={Low:'Wide, open drainage angle',Moderate:'Moderately narrow angle',High:'Narrow angle: closure risk',Critical:'Very narrow angle: urgent'}[cat];
+ return`<svg viewBox="0 0 300 195" class="ch" role="img" aria-label="Live anterior chamber diagram"><path d="M72 22Q30 95 72 168L${lx} 118L${lx} 72Z" fill="#7fc4e0" opacity=".35"/>
+ <ellipse cx="${lx+40}" cy="95" rx="40" ry="48" fill="#e6d79b" opacity=".85"/><line x1="72" y1="22" x2="${lx}" y2="72" stroke="#7b5b3a" stroke-width="9" stroke-linecap="round"/><line x1="72" y1="168" x2="${lx}" y2="118" stroke="#7b5b3a" stroke-width="9" stroke-linecap="round"/>
+ <path d="M72 22Q30 95 72 168" fill="none" stroke="#c4d2dc" stroke-width="7" stroke-linecap="round"/>
+ <circle cx="80" cy="34" r="8" fill="${c}" opacity=".85"><animate attributeName="r" values="6;12;6" dur="1.6s" repeatCount="indefinite"/></circle><circle cx="80" cy="156" r="8" fill="${c}" opacity=".85"><animate attributeName="r" values="6;12;6" dur="1.6s" repeatCount="indefinite"/></circle>
+ <line x1="51" y1="95" x2="${lx}" y2="95" stroke="var(--ac)" stroke-width="2" stroke-dasharray="4 3"/><text x="${(51+lx)/2}" y="87" font-size="12" font-weight="700" text-anchor="middle" fill="var(--ink)">ACD ${a.toFixed(2)} mm</text>
+ <text x="8" y="188" font-size="13" font-weight="700" fill="${c}">${lab}</text><text x="292" y="12" font-size="8" text-anchor="end" fill="var(--mut)">Live schematic, not a measured angle</text></svg>`}
+function queue(){const q=D.P.map(p=>({p,m:mine(p.id).pop()})).filter(x=>x.m&&x.m.pct>=D.set.t[1]).sort((a,b)=>b.m.pct-a.m.pct);
+ return`<div class="card"><h2>Referral priority queue</h2>${q.length?`<div class="tbl"><table><tr><th>#</th><th>Patient</th><th>ACD</th><th>Risk</th><th>Suggested review</th><th></th></tr>${q.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.p.n)}</td><td>${x.m.acd.toFixed(2)} mm</td><td>${pill(x.m.cat)} ${x.m.pct}%</td><td>${x.m.cat=='Critical'?'Within 1 week':'Within 1 month'}</td><td><a target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`Glaucoband referral: ${x.p.n} (${x.p.id}), ACD ${x.m.acd.toFixed(2)} mm, ${x.m.cat} risk (${x.m.pct}%). Please arrange an ophthalmology review.`)}">Share on WhatsApp</a></td></tr>`).join('')}</table></div>`:'<p class="mut">No patient is currently at High or Critical risk.</p>'}<p class="mut">Ranked by each patient's latest risk score so the most urgent are seen first. The timeframes are suggestions, not clinical rules.</p></div>`}
+function impact(){const n=D.M.length,pt=new Set(D.M.map(m=>m.pid)).size,rf=D.M.filter(m=>m.pct>=D.set.t[1]).length,pr=D.set.price;
+ return`<div class="card"><h2>Rural screening impact</h2><div class="kpi"><div><b>${pt}</b>People screened</div><div><b>${rf}</b>Scans referred for specialist review</div><div><b>\u20b9${(n*(5000-pr)).toLocaleString('en-IN')}</b>Saved vs \u20b95,000 conventional screening</div><div><b>${(n*29.5/60).toFixed(1)} h</b>Clinic time saved (30 s vs 30 min)</div></div><p class="mut">Calculated live from the scans saved in this app, using the lower bounds in the problem statement. Nothing is estimated beyond that.</p></div>`}
+
+try{if(!localStorage.getItem('gb2')){localStorage.setItem('gb2','1');localStorage.removeItem('glaucoband1');TF&&['gb-risk','gb-loc'].forEach(k=>tf.io.removeModel('indexeddb://'+k).catch(()=>{}))}}catch(e){}
+if(TF){if(D.mdl)tf.loadLayersModel('indexeddb://gb-risk').then(m=>{RM=m}).catch(()=>{});if(D.cnn)tf.loadLayersModel('indexeddb://gb-loc').then(m=>{CM=m}).catch(()=>{})}
+shell();
+</script><script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))</script></body></html>
